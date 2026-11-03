@@ -1,7 +1,7 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
@@ -13,20 +13,6 @@
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "moviesdrive.js",
-      "enabled": true,
-      "hasSettings": false,
-      "contentLanguage": ["en", "hi"],
-      "formats": ["mp4", "mkv"],
-      "supportsExternalPlayer": true
-    },
-    {
-      "id": "vegamovies",
-      "name": "VegaMovies",
-      "description": "VegaMovies provider (V-Cloud)",
-      "version": "1.0.0",
-      "author": "ali8626",
-      "supportedTypes": ["movie", "tv"],
-      "filename": "vegamovies.js",
       "enabled": true,
       "hasSettings": false,
       "contentLanguage": ["en", "hi"],
