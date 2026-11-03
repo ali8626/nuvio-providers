@@ -9,7 +9,7 @@ var UA = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko)
 
 async function getText(url) {
   var r = await fetch(url, { headers: { 'User-Agent': UA } });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + String(url).replace(/^https?:\/\//, '').slice(0, 60));
   return r.text();
 }
 
@@ -295,9 +295,43 @@ function absUrl(base, u) {
   return base + (u.charAt(0) === '/' ? '' : '/') + u;
 }
 
+var _tried = [];
+
+// نتائج البحث من صفحة HTML (شبكة الأفلام): a > img[alt]
+function parseGrid(html) {
+  var out = [];
+  var re = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  var m;
+  while ((m = re.exec(html))) {
+    var img = /<img\b[^>]*>/i.exec(m[2]);
+    var href = /href=["']([^"']+)["']/i.exec(m[1]);
+    if (!img || !href) continue;
+    var alt = /alt=["']([^"']*)["']/i.exec(img[0]);
+    if (!alt || !alt[1]) continue;
+    out.push({ permalink: href[1].replace(/&amp;/g, '&'), post_title: strip(alt[1].replace(/^Download\s+/i, '')) });
+  }
+  return out;
+}
+
+async function searchHits(base, title) {
+  var enc = encodeURIComponent(title);
+  _tried = [];
+  try {
+    var res = JSON.parse(await getText(base + '/search.php?q=' + enc + '&page=1'));
+    var h = (res.hits || []).map(function (x) { return x.document; }).filter(Boolean);
+    if (h.length) return h;
+    _tried.push('search.php: 0 hits');
+  } catch (e) { _tried.push('search.php: ' + (e && e.message ? e.message : e)); }
+  try {
+    var g = parseGrid(await getText(base + '/?s=' + enc));
+    if (g.length) return g;
+    _tried.push('?s=: 0 results');
+  } catch (e2) { _tried.push('?s=: ' + (e2 && e2.message ? e2.message : e2)); }
+  return [];
+}
+
 async function findPage(base, meta) {
-  var res = JSON.parse(await getText(base + '/search.php?q=' + encodeURIComponent(meta.title) + '&page=1'));
-  var hits = (res.hits || []).map(function (h) { return h.document; }).filter(Boolean);
+  var hits = await searchHits(base, meta.title);
   var nt = norm(meta.title);
   var cands = hits.filter(function (d) { return norm(d.post_title).indexOf(nt) !== -1; });
   var pick = null;
@@ -382,7 +416,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     if (!meta || !meta.title) return fail('no title from metadata');
     step = 'search "' + meta.title + '"';
     var page = await findPage(base, meta);
-    if (!page) return fail('no search match for "' + meta.title + '" ' + (meta.year || '') + ' @ ' + base);
+    if (!page) return fail('no match "' + meta.title + '" ' + (meta.year || '') + ' @ ' + base + ' [' + _tried.join('; ') + ']');
     step = 'links';
 
     var links = []; // { url, label }
