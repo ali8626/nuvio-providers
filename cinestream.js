@@ -9,8 +9,14 @@ var UA = 'Mozilla/5.0 (Linux; Android 11; Mi 9T Pro) AppleWebKit/537.36 (KHTML, 
 // وضع التشخيص: عند الفشل يظهر سطر في قائمة السيرفرات يشرح السبب. اجعله false بعد أن يعمل.
 var DEBUG = true;
 
+function sleep(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+
 async function getJson(url, headers) {
   var r = await fetch(url, { headers: headers || { 'User-Agent': UA } });
+  if (r.status === 429 || r.status === 503) {
+    await sleep(1500);
+    r = await fetch(url, { headers: headers || { 'User-Agent': UA } });
+  }
   if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + String(url).replace(/^https?:\/\//, '').slice(0, 50));
   return JSON.parse(await r.text());
 }
@@ -74,7 +80,20 @@ function debugStream(msg) {
   return [{ name: 'CineStream DEBUG', title: msg, url: 'https://example.com/debug.mp4', quality: 'Unknown', headers: {}, provider: 'cinestream' }];
 }
 
+var CACHE = {};
+var CACHE_MS = 10 * 60 * 1000;
+
 async function getStreams(tmdbId, mediaType, season, episode) {
+  var key = [tmdbId, mediaType, season, episode].join('|');
+  var hit = CACHE[key];
+  if (hit && Date.now() - hit.t < CACHE_MS) return hit.v;
+  var v = await fetchStreams(tmdbId, mediaType, season, episode);
+  // لا نخزّن نتائج الفشل/التشخيص
+  if (v.length && v[0].name !== 'CineStream DEBUG') CACHE[key] = { t: Date.now(), v: v };
+  return v;
+}
+
+async function fetchStreams(tmdbId, mediaType, season, episode) {
   var errors = [];
   var results = await Promise.all(SOURCES.map(function (s) {
     return s.fn(tmdbId, mediaType, season, episode).catch(function (e) {
