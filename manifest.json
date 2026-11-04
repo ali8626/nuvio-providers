@@ -23,7 +23,7 @@
       "id": "cinestream",
       "name": "CineStream",
       "description": "CineStream sources (Vidlink)",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "cinestream.js",
