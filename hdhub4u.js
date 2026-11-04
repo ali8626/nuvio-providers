@@ -365,9 +365,10 @@ function extLinks(html) {
   var re = /<a\b([^>]*)>/gi;
   var m;
   while ((m = re.exec(html))) {
-    if (!/data-wpel-link\s*=\s*["']external["']/i.test(m[1])) continue;
     var h = /href\s*=\s*["']([^"']+)["']/i.exec(m[1]);
-    if (h && !BAD_LINK.test(h[1])) out.push(h[1].replace(/&amp;/g, '&'));
+    if (!h) continue;
+    var isExt = /data-wpel-link\s*=\s*["']external["']/i.test(m[1]);
+    if ((isExt || KNOWN_HOST.test(h[1])) && !BAD_LINK.test(h[1])) out.push(h[1].replace(/&amp;/g, '&'));
   }
   return out;
 }
@@ -377,7 +378,8 @@ function movieLinks(html) {
   var re = /<div[^>]*class=["'][^"']*\bmod\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi;
   var m;
   while ((m = re.exec(html))) blocks.push(m[1]);
-  return extLinks(blocks.length ? blocks.join('\n') : html);
+  var inMod = extLinks(blocks.join('\n'));
+  return inMod.length ? inMod : extLinks(html);
 }
 
 function pageTitle(html) {
