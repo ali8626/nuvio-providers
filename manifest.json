@@ -23,7 +23,7 @@
       "id": "movies4u",
       "name": "Movies4u",
       "description": "Movies4u provider (HubCloud / GDFlix)",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "movies4u.js",
