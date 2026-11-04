@@ -147,10 +147,23 @@ async function finalUrl(url) {
   }
 }
 
+var _dbg = [];
+
+// نجرّب الرابط كما هو أولًا، ثم النطاق الأحدث من urls.json إن اختلف
 async function resolveHubCloud(url) {
+  var first = await resolveHubCloudOnce(url, false);
+  if (first.length) return first;
+  var source = /hubcloud/i.test(url) ? 'hubcloud' : 'vcloud';
+  var base = baseOf(url);
+  var latest = await latestBase(base, source);
+  if (latest && latest !== base) return resolveHubCloudOnce(url, true);
+  return first;
+}
+
+async function resolveHubCloudOnce(url, useLatest) {
   var base = baseOf(url);
   var source = /hubcloud/i.test(url) ? 'hubcloud' : 'vcloud';
-  var latest = await latestBase(base, source);
+  var latest = useLatest ? await latestBase(base, source) : base;
   var newUrl = url;
   if (base !== latest) { newUrl = url.replace(base, latest); base = latest; }
 
@@ -166,7 +179,7 @@ async function resolveHubCloud(url) {
     var um = /var url = '([^']*)'/.exec(html);
     link = um ? um[1] : '';
   }
-  if (!link) return [];
+  if (!link) { _dbg.push(hostOf(newUrl) + ': no download link in page'); return []; }
   if (link.indexOf('https://') !== 0) link = base + link;
 
   var doc = await getText(link);
@@ -290,7 +303,7 @@ async function resolveLink(url) {
   try {
     if (/gdflix|gdlink/i.test(url)) return await resolveGDFlix(url);
     if (/hubcloud|vcloud/i.test(url)) return await resolveHubCloud(url);
-  } catch (e) {}
+  } catch (e) { _dbg.push(hostOf(url) + ': ' + (e && e.message ? e.message : e)); }
   return [];
 }
 
@@ -407,6 +420,7 @@ function debugStream(msg) {
 
 async function getStreams(tmdbId, mediaType, season, episode) {
   var step = 'start';
+  _dbg = [];
   function fail(m) { return DEBUG ? debugStream(m) : []; }
   try {
     step = 'base';
@@ -496,7 +510,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     var out = res2.reduce(function (acc, r) { return acc.concat(r); }, []);
     if (!out.length) {
       var hs = Object.keys(hosts).map(function (k) { return k + ' x' + hosts[k]; }).join(', ');
-      return fail('found ' + links.length + ' links, none playable. hosts: ' + (hs || 'none'));
+      return fail('found ' + links.length + ' links, none playable. hosts: ' + (hs || 'none') + (_dbg.length ? ' | ' + _dbg.slice(0, 3).join(' | ') : ''));
     }
     return out;
   } catch (err2) {
