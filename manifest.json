@@ -1,7 +1,7 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
@@ -17,6 +17,20 @@
       "hasSettings": false,
       "contentLanguage": ["en", "hi"],
       "formats": ["mp4", "mkv"],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "cinestream",
+      "name": "CineStream",
+      "description": "CineStream sources (Vidlink)",
+      "version": "1.0.0",
+      "author": "ali8626",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "cinestream.js",
+      "enabled": true,
+      "hasSettings": false,
+      "contentLanguage": ["en"],
+      "formats": ["mp4", "mkv", "m3u8"],
       "supportsExternalPlayer": true
     }
   ]
