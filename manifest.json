@@ -23,7 +23,7 @@
       "id": "hdhub4u",
       "name": "HDhub4u",
       "description": "HDhub4u provider (HubCloud / GDFlix)",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "hdhub4u.js",
