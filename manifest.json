@@ -1,7 +1,7 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
@@ -20,13 +20,13 @@
       "supportsExternalPlayer": true
     },
     {
-      "id": "hdhub4u",
-      "name": "HDhub4u",
-      "description": "HDhub4u provider (HubCloud / GDFlix)",
-      "version": "1.0.1",
+      "id": "movies4u",
+      "name": "Movies4u",
+      "description": "Movies4u provider (HubCloud / GDFlix)",
+      "version": "1.0.0",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
-      "filename": "hdhub4u.js",
+      "filename": "movies4u.js",
       "enabled": true,
       "hasSettings": false,
       "contentLanguage": ["en", "hi"],
