@@ -356,7 +356,8 @@ function pageUrl(base, permalink) {
   return base + '/' + path;
 }
 
-var BAD_LINK = /whatsapp\.com|telegram|catimages/i;
+var BAD_LINK = /whatsapp\.com|telegram|t\.me\/|catimages|imdb\.com|themoviedb|youtube|youtu\.be|facebook|twitter|instagram|google\./i;
+var KNOWN_HOST = /hubdrive|hubcloud|hubcdn|gdflix|gdlink|vcloud|greenmountmotors|fastdlserver|pixeldrain|gofile/i;
 
 // a[data-wpel-link=external]
 function extLinks(html) {
