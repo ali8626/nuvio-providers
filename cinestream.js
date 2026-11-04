@@ -45,10 +45,17 @@ async function vidlink(tmdbId, mediaType, season, episode) {
   Object.keys(qualities).forEach(function (key) {
     var q = qualities[key];
     if (!q || !q.url) return;
-    var h = q.headers || { 'Referer': 'https://filmboom.top/', 'Origin': 'https://filmboom.top' };
+    // ترويسات افتراضية + ما يرسله الخادم (الخادم يغلب)
+    var h = { 'User-Agent': UA, 'Referer': 'https://filmboom.top/', 'Origin': 'https://filmboom.top' };
+    var sh = q.headers || {};
+    Object.keys(sh).forEach(function (k) {
+      Object.keys(h).forEach(function (e) { if (e.toLowerCase() === k.toLowerCase()) delete h[e]; });
+      h[k] = sh[k];
+    });
+    var host = (/^https?:\/\/([^\/]+)/i.exec(q.url) || [])[1] || '?';
     out.push({
       name: 'VidLink',
-      title: 'VidLink ' + qualityName(key),
+      title: 'VidLink ' + qualityName(key) + ' • ' + host + (q.type ? ' • ' + q.type : ''),
       url: q.url,
       quality: qualityName(key),
       headers: h,
