@@ -1,7 +1,7 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
