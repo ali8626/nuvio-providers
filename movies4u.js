@@ -149,15 +149,37 @@ async function finalUrl(url) {
 
 var _dbg = [];
 
-// نجرّب الرابط كما هو أولًا، ثم النطاق الأحدث من urls.json إن اختلف
+// نجرّب الرابط كما هو أولًا، ثم النطاق الأحدث من urls.json إن اختلف (حتى لو فشل الأول بخطأ HTTP)
 async function resolveHubCloud(url) {
-  var first = await resolveHubCloudOnce(url, false);
-  if (first.length) return first;
+  try {
+    var first = await resolveHubCloudOnce(url, false);
+    if (first.length) return first;
+  } catch (e) {
+    _dbg.push(hostOf(url) + ': ' + (e && e.message ? e.message : e));
+  }
   var source = /hubcloud/i.test(url) ? 'hubcloud' : 'vcloud';
   var base = baseOf(url);
   var latest = await latestBase(base, source);
-  if (latest && latest !== base) return resolveHubCloudOnce(url, true);
-  return first;
+  if (latest && latest !== base) {
+    try {
+      return await resolveHubCloudOnce(url, true);
+    } catch (e2) {
+      _dbg.push(hostOf(latest) + ': ' + (e2 && e2.message ? e2.message : e2));
+    }
+  }
+  return [];
+}
+
+// طلب بترويسات تشبه المتصفح (بعض الخوادم ترفض الطلبات بدون Referer)
+async function getTextH(url, referer) {
+  var r = await fetch(url, { headers: {
+    'User-Agent': UA_DESKTOP,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': referer || 'https://mdrive.cloud/'
+  } });
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + String(url).replace(/^https?:\/\//, '').slice(0, 40));
+  return r.text();
 }
 
 async function resolveHubCloudOnce(url, useLatest) {
@@ -167,7 +189,7 @@ async function resolveHubCloudOnce(url, useLatest) {
   var newUrl = url;
   if (base !== latest) { newUrl = url.replace(base, latest); base = latest; }
 
-  var html = await getText(newUrl);
+  var html = await getTextH(newUrl, 'https://mdrive.cloud/');
   var link = '';
   if (newUrl.indexOf('/video/') !== -1) {
     var vm = /<div[^>]*class=["'][^"']*\bvd\b[^"']*["'][^>]*>[\s\S]*?<center>[\s\S]*?<a[^>]*href=["']([^"']+)["']/i.exec(html);
@@ -182,7 +204,7 @@ async function resolveHubCloudOnce(url, useLatest) {
   if (!link) { _dbg.push(hostOf(newUrl) + ': no download link in page'); return []; }
   if (link.indexOf('https://') !== 0) link = base + link;
 
-  var doc = await getText(link);
+  var doc = await getTextH(link, newUrl);
   var hm = /<div[^>]*card-header[^>]*>([\s\S]*?)<\/div>/i.exec(doc);
   var header = hm ? strip(hm[1]) : '';
   var sm = /<i[^>]*id=["']size["'][^>]*>([\s\S]*?)<\/i>/i.exec(doc);
