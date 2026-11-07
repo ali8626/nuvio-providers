@@ -1,7 +1,7 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
@@ -37,7 +37,7 @@
       "id": "advisory",
       "name": "Content Guide",
       "description": "Scene info from IMDb / Kids-In-Mind",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "advisory.js",
