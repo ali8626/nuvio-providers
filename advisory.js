@@ -1,7 +1,6 @@
-// advisory.js - Nuvio provider: content guide (scene info) shown as source entries.
+// advisory.js (no TMDB key needed) - Nuvio provider: content guide (scene info) shown as source entries.
 // Best-effort scraping: sites change often, so every step is wrapped in try/catch.
 
-const TMDB_API_KEY = 'PUT_YOUR_TMDB_KEY_HERE'; // copy the key from your working providers
 const UA = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36';
 
 async function get(url) {
@@ -30,15 +29,26 @@ function findTimes(text) {
 }
 
 async function tmdbInfo(tmdbId, mediaType) {
+  // No API key: read title/year from the public TMDB page, then find the IMDb id.
   const type = mediaType === 'tv' ? 'tv' : 'movie';
-  const base = 'https://api.themoviedb.org/3/' + type + '/' + tmdbId;
-  const [ext, det] = await Promise.all([
-    get(base + '/external_ids?api_key=' + TMDB_API_KEY).then(JSON.parse),
-    get(base + '?api_key=' + TMDB_API_KEY).then(JSON.parse)
-  ]);
-  const title = det.title || det.name || '';
-  const date = det.release_date || det.first_air_date || '';
-  return { imdbId: ext.imdb_id, title, year: date.slice(0, 4) };
+  const html = await get('https://www.themoviedb.org/' + type + '/' + tmdbId + '?language=en-US');
+  const t = html.match(/<title>([^<]*)<\/title>/i);
+  if (!t) throw new Error('TMDB page title not found');
+  const raw = t[1].replace(/&amp;/g, '&').replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"');
+  const head = raw.split(/\s[\u2014\u2013-]\s/)[0];
+  const y = head.match(/\((?:TV Series\s*)?(\d{4})/);
+  const year = y ? y[1] : '';
+  const title = head.replace(/\s*\([^)]*\)\s*$/, '').trim();
+
+  const q = title.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().replace(/ +/g, '_');
+  let imdbId = null;
+  if (q) {
+    const j = JSON.parse(await get('https://v2.sg.media-imdb.com/suggestion/' + q[0] + '/' + q + '.json'));
+    const list = (j.d || []).filter(x => x.id && x.id.indexOf('tt') === 0);
+    const hit = list.find(x => year && String(x.y) === year) || list[0];
+    if (hit) imdbId = hit.id;
+  }
+  return { imdbId, title, year };
 }
 
 // IMDb Parents Guide (best-effort: reads the nudity block of the page)
