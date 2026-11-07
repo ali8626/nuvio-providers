@@ -34,11 +34,14 @@ async function tmdbInfo(tmdbId, mediaType) {
   const html = await get('https://www.themoviedb.org/' + type + '/' + tmdbId + '?language=en-US');
   const t = html.match(/<title>([^<]*)<\/title>/i);
   if (!t) throw new Error('TMDB page title not found');
-  const raw = t[1].replace(/&amp;/g, '&').replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"');
-  const head = raw.split(/\s[\u2014\u2013-]\s/)[0];
-  const y = head.match(/\((?:TV Series\s*)?(\d{4})/);
-  const year = y ? y[1] : '';
-  const title = head.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const raw = t[1]
+    .replace(/&#(\d+);/g, (m, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (m, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+  // e.g. "Obsession (2026) — The Movie Database (TMDB)"
+  const mm = raw.match(/^(.*?)\s*\((?:TV Series\s*)?(\d{4})\)/);
+  const title = (mm ? mm[1] : raw.split(/\s[\u2014\u2013-]\s/)[0]).trim();
+  const year = mm ? mm[2] : '';
 
   const q = title.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().replace(/ +/g, '_');
   let imdbId = null;
