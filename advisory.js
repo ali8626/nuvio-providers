@@ -92,13 +92,35 @@ async function fromKidsInMind(title) {
   return null;
 }
 
+function debugEntry(msg) {
+  return [{
+    name: '⚠️ Content Guide - DEBUG',
+    title: msg,
+    url: 'https://www.imdb.com/',
+    quality: 'Info',
+    headers: {}
+  }];
+}
+
 async function getStreams(tmdbId, mediaType, season, episode) {
+  let step = 'start';
   try {
+    step = 'tmdb-page';
     const info = await tmdbInfo(tmdbId, mediaType);
-    const jobs = [];
-    if (info.imdbId) jobs.push(fromImdb(info.imdbId).catch(() => null));
-    if (info.title && mediaType !== 'tv') jobs.push(fromKidsInMind(info.title).catch(() => null));
-    const results = (await Promise.all(jobs)).filter(Boolean);
+    if (!info.imdbId) return debugEntry('No IMDb id found for: ' + info.title + ' ' + info.year);
+
+    step = 'sources';
+    const jobs = [fromImdb(info.imdbId).catch(e => ({ err: 'IMDb: ' + e.message }))];
+    if (info.title && mediaType !== 'tv') {
+      jobs.push(fromKidsInMind(info.title).catch(e => ({ err: 'KIM: ' + e.message })));
+    }
+    const all = await Promise.all(jobs);
+    const results = all.filter(r => r && !r.err);
+    const errors = all.filter(r => r && r.err).map(r => r.err);
+
+    if (!results.length) {
+      return debugEntry('Nothing found for ' + info.title + ' (' + info.imdbId + ') ' + errors.join(' ; '));
+    }
 
     return results.map(r => {
       const when = r.times.length ? ' | Times: ' + r.times.join(', ') : ' | No exact times';
@@ -112,8 +134,8 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       };
     });
   } catch (e) {
-    console.log('[advisory] ' + e.message);
-    return [];
+    console.log('[advisory] ' + step + ': ' + e.message);
+    return debugEntry('Failed at ' + step + ': ' + e.message);
   }
 }
 
