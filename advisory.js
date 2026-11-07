@@ -141,13 +141,14 @@ async function fromImdb(imdbId) {
 async function fromKidsInMind(title) {
   const clean = title.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
   const noArticle = clean.replace(/^(the|a|an) /, '');
-  const slugs = Array.from(new Set([
-    noArticle.replace(/ /g, '-'),
-    noArticle.replace(/ /g, ''),
-    clean.replace(/ /g, '-')
-  ]));
+  const base = [clean.replace(/ +/g, '-'), noArticle.replace(/ +/g, '-')];
+  const slugs = [];
+  base.forEach(b => {
+    slugs.push(b + '-parents-guide-movie-review-rating'); // current site pattern
+    slugs.push(b);                                        // old pattern
+  });
   const tried = [];
-  for (const slug of slugs) {
+  for (const slug of Array.from(new Set(slugs))) {
     const url = 'https://kids-in-mind.com/' + slug[0] + '/' + slug + '.htm';
     try {
       const text = stripTags(await get(url));
@@ -155,6 +156,24 @@ async function fromKidsInMind(title) {
       if (!m) { tried.push(slug + ':nomatch'); continue; }
       const desc = m[2].length > 220 ? m[2].slice(0, 217) + '...' : m[2];
       return { source: 'Kids-In-Mind', url, rating: m[1] + '/10', text: desc, times: findTimes(m[2]) };
+    } catch (e) { tried.push(slug + ':' + e.message.replace(/ https?:\S+/, '')); }
+  }
+  throw new Error(tried.join(', '));
+}
+
+// Plugged In (Focus on the Family): /movie-reviews/<title>-<year>/
+async function fromPluggedIn(title, year) {
+  const clean = title.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().replace(/ +/g, '-');
+  const slugs = year ? [clean + '-' + year, clean] : [clean];
+  const tried = [];
+  for (const slug of slugs) {
+    const url = 'https://www.pluggedin.com/movie-reviews/' + slug + '/';
+    try {
+      const text = stripTags(await get(url));
+      const m = text.match(/Sexual\s*(?:&|and)\s*Romantic\s*Content\s*(.*?)(?:Violent\s*Content|Crude\s*or\s*Profane|Drug\s*and\s*Alcohol|Other\s*Negative|$)/i);
+      if (!m || m[1].length < 20) { tried.push(slug + ':nomatch'); continue; }
+      const t = m[1].trim();
+      return { source: 'Plugged In', url, text: t.length > 300 ? t.slice(0, 297) + '...' : t, times: findTimes(t) };
     } catch (e) { tried.push(slug + ':' + e.message.replace(/ https?:\S+/, '')); }
   }
   throw new Error(tried.join(', '));
@@ -181,6 +200,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     const jobs = [fromImdb(info.imdbId).catch(e => ({ err: 'IMDb: ' + e.message }))];
     if (info.title && mediaType !== 'tv') {
       jobs.push(fromKidsInMind(info.title).catch(e => ({ err: 'KIM: ' + e.message })));
+      jobs.push(fromPluggedIn(info.title, info.year).catch(e => ({ err: 'PluggedIn: ' + e.message })));
     }
     const all = await Promise.all(jobs);
     const results = all.filter(r => r && !r.err);
