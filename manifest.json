@@ -1,7 +1,7 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
@@ -32,6 +32,20 @@
       "contentLanguage": ["en", "hi"],
       "formats": ["mp4", "mkv"],
       "supportsExternalPlayer": true
+    },
+    {
+      "id": "advisory",
+      "name": "Content Guide",
+      "description": "Scene info from IMDb / Kids-In-Mind",
+      "version": "1.0.0",
+      "author": "ali8626",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "advisory.js",
+      "enabled": true,
+      "hasSettings": false,
+      "contentLanguage": ["en"],
+      "formats": ["mp4"],
+      "supportsExternalPlayer": false
     }
   ]
 }
