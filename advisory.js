@@ -55,7 +55,7 @@ async function tmdbInfo(tmdbId, mediaType) {
 }
 
 // IMDb Parents Guide (best-effort). Throws a descriptive error when nothing is found.
-async function fromImdb(imdbId) {
+async function fromImdbHtml(imdbId) {
   const url = 'https://www.imdb.com/title/' + imdbId + '/parentalguide';
   const html = await get(url);
   let items = [];
@@ -94,6 +94,47 @@ async function fromImdb(imdbId) {
   }
   const times = findTimes(items.join(' '));
   return { source: 'IMDb', url, rating: sev || '', text: items.join(' | '), times };
+}
+
+// IMDb via its public GraphQL endpoint (the HTML page is often blocked / empty)
+async function fromImdbGraphql(imdbId) {
+  const query = 'query { title(id: "' + imdbId + '") { parentsGuide { categories { ' +
+    'category { id text } severity { text } ' +
+    'guideItems(first: 5) { edges { node { isSpoiler text { plainText } } } } } } } }';
+  const res = await fetch('https://api.graphql.imdb.com/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
+    body: JSON.stringify({ query })
+  });
+  const body = await res.text();
+  if (!res.ok) throw new Error('GraphQL HTTP ' + res.status);
+  const j = JSON.parse(body);
+  const cats = (((j.data || {}).title || {}).parentsGuide || {}).categories || [];
+  const c = cats.find(x => x.category && x.category.id === 'NUDITY');
+  if (!c) throw new Error('GraphQL: no nudity category (' + cats.length + ' categories)');
+  const items = ((c.guideItems || {}).edges || [])
+    .map(e => e.node)
+    .filter(n => n && n.text && n.text.plainText)
+    .map(n => (n.isSpoiler ? '[spoiler] ' : '') + n.text.plainText)
+    .slice(0, 3)
+    .map(t => (t.length > 180 ? t.slice(0, 177) + '...' : t));
+  const sev = c.severity && c.severity.text ? c.severity.text : '';
+  if (!items.length && !sev) throw new Error('GraphQL: nudity category empty');
+  const text = items.length ? items.join(' | ') : 'Severity: ' + sev;
+  return {
+    source: 'IMDb',
+    url: 'https://www.imdb.com/title/' + imdbId + '/parentalguide',
+    rating: sev,
+    text,
+    times: findTimes(items.join(' '))
+  };
+}
+
+async function fromImdb(imdbId) {
+  const errs = [];
+  try { return await fromImdbGraphql(imdbId); } catch (e) { errs.push(e.message); }
+  try { return await fromImdbHtml(imdbId); } catch (e) { errs.push('HTML: ' + e.message); }
+  throw new Error(errs.join(' ; '));
 }
 
 // Kids-In-Mind: URL pattern /<first letter>/<slug>.htm
