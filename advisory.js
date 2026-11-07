@@ -179,9 +179,22 @@ async function fromPluggedIn(title, year) {
   throw new Error(tried.join(', '));
 }
 
+// Free Google Translate endpoint (no key). Falls back to the original text on any failure.
+async function toArabic(text) {
+  try {
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ar&dt=t&q=' +
+      encodeURIComponent(text);
+    const j = JSON.parse(await get(url));
+    const out = (j[0] || []).map(x => x[0]).join('');
+    return out || text;
+  } catch (e) {
+    return text;
+  }
+}
+
 function debugEntry(msg) {
   return [{
-    name: '⚠️ Content Guide - DEBUG',
+    name: '⚠️ دليل المحتوى - DEBUG',
     title: msg,
     url: 'https://www.imdb.com/',
     quality: 'Info',
@@ -210,17 +223,18 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       return debugEntry('Nothing found for ' + info.title + ' (' + info.imdbId + ') ' + errors.join(' ; '));
     }
 
-    return results.map(r => {
-      const when = r.times.length ? ' | Times: ' + r.times.join(', ') : ' | No exact times';
+    return await Promise.all(results.map(async r => {
+      const textAr = await toArabic(r.text);
+      const when = r.times.length ? ' | التوقيتات: ' + r.times.join('، ') : ' | لا توجد توقيتات دقيقة';
       const rate = r.rating ? ' [' + r.rating + ']' : '';
       return {
-        name: '⚠️ Content Guide - ' + r.source + rate,
-        title: r.text + when,
+        name: '⚠️ دليل المحتوى - ' + r.source + rate,
+        title: textAr + when,
         url: r.url, // informational only, not a playable stream
         quality: 'Info',
         headers: {}
       };
-    });
+    }));
   } catch (e) {
     console.log('[advisory] ' + step + ': ' + e.message);
     return debugEntry('Failed at ' + step + ': ' + e.message);
