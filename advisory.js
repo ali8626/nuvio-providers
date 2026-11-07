@@ -54,23 +54,46 @@ async function tmdbInfo(tmdbId, mediaType) {
   return { imdbId, title, year };
 }
 
-// IMDb Parents Guide (best-effort: reads the nudity block of the page)
+// IMDb Parents Guide (best-effort). Throws a descriptive error when nothing is found.
 async function fromImdb(imdbId) {
   const url = 'https://www.imdb.com/title/' + imdbId + '/parentalguide';
   const html = await get(url);
+  let items = [];
+
+  // 1) embedded JSON (plainText strings after the NUDITY category)
   const i = html.indexOf('"NUDITY"');
-  if (i < 0) return null;
-  const chunk = html.slice(i, i + 8000);
-  const items = [];
-  const re = /"plainText":"((?:[^"\\]|\\.)*)"/g;
-  let m;
-  while ((m = re.exec(chunk)) !== null && items.length < 4) {
-    let t = m[1].replace(/\\n/g, ' ').replace(/\\"/g, '"');
-    if (t.length > 20) items.push(t.length > 160 ? t.slice(0, 157) + '...' : t);
+  if (i >= 0) {
+    const chunk = html.slice(i, i + 8000);
+    const re = /"plainText":"((?:[^"\\]|\\.)*)"/g;
+    let m;
+    while ((m = re.exec(chunk)) !== null && items.length < 4) {
+      const t = m[1].replace(/\\n/g, ' ').replace(/\\"/g, '"');
+      if (t.length > 20) items.push(t.length > 160 ? t.slice(0, 157) + '...' : t);
+    }
   }
-  if (!items.length) return null;
+
+  // 2) fallback: plain text between "Sex & Nudity" and "Violence & Gore"
+  let sev = '';
+  if (!items.length) {
+    const text = stripTags(html);
+    const k = text.search(/Sex\s*&\s*Nudity/i);
+    if (k >= 0) {
+      let part = text.slice(k + 12, k + 2500);
+      const e = part.search(/Violence\s*&\s*Gore/i);
+      if (e >= 0) part = part.slice(0, e);
+      part = part.trim();
+      const sv = part.match(/^(None|Mild|Moderate|Severe)\b/i);
+      if (sv) sev = sv[1];
+      if (part.length > 20) items.push(part.length > 300 ? part.slice(0, 297) + '...' : part);
+    }
+  }
+
+  if (!items.length) {
+    throw new Error('page ' + html.length + ' chars, nudity marker ' + (i >= 0 ? 'yes' : 'no') +
+      ', text marker ' + (/Sex\s*&amp;\s*Nudity|Sex\s*&\s*Nudity/i.test(html) ? 'yes' : 'no'));
+  }
   const times = findTimes(items.join(' '));
-  return { source: 'IMDb', url, text: items.join(' | '), times };
+  return { source: 'IMDb', url, rating: sev || '', text: items.join(' | '), times };
 }
 
 // Kids-In-Mind: URL pattern /<first letter>/<slug>.htm
@@ -82,17 +105,18 @@ async function fromKidsInMind(title) {
     noArticle.replace(/ /g, ''),
     clean.replace(/ /g, '-')
   ]));
+  const tried = [];
   for (const slug of slugs) {
     const url = 'https://kids-in-mind.com/' + slug[0] + '/' + slug + '.htm';
     try {
       const text = stripTags(await get(url));
       const m = text.match(/SEX\s*\/\s*NUDITY\s*(\d+)\s*(.*?)(?:VIOLENCE\s*\/\s*GORE|$)/i);
-      if (!m) continue;
+      if (!m) { tried.push(slug + ':nomatch'); continue; }
       const desc = m[2].length > 220 ? m[2].slice(0, 217) + '...' : m[2];
       return { source: 'Kids-In-Mind', url, rating: m[1] + '/10', text: desc, times: findTimes(m[2]) };
-    } catch (e) { /* try next slug */ }
+    } catch (e) { tried.push(slug + ':' + e.message.replace(/ https?:\S+/, '')); }
   }
-  return null;
+  throw new Error(tried.join(', '));
 }
 
 function debugEntry(msg) {
