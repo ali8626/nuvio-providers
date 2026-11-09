@@ -441,7 +441,7 @@ function hostOf(u) {
 }
 
 // وضع التشخيص: عند الفشل يظهر سطر في قائمة السيرفرات يشرح السبب. اجعله false بعد أن يعمل المزوّد.
-var DEBUG = true;
+var DEBUG = false;
 
 function debugStream(msg) {
   return [{ name: 'HDhub4u DEBUG', title: msg, url: 'https://example.com/debug.mp4', quality: 'Unknown', headers: {}, provider: 'hdhub4u' }];
