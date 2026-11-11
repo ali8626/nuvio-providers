@@ -7,9 +7,9 @@
   "scrapers": [
     {
       "id": "moviesdrive",
-      "name": "✅️ MoviesDrive",
+      "name": "MoviesDrive",
       "description": "MoviesDrive provider (HubCloud / GDFlix)",
-      "version": "1.0.1",
+      "version": "1.0.0",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "moviesdrive.js",
