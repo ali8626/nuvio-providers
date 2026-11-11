@@ -1,7 +1,7 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
@@ -9,7 +9,7 @@
       "id": "moviesdrive",
       "name": "MoviesDrive",
       "description": "MoviesDrive provider (HubCloud / GDFlix)",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "moviesdrive.js",
@@ -37,7 +37,7 @@
       "id": "multimovies",
       "name": "✅️ Multimovies",
       "description": "Multimovies provider (site servers)",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "multimovies.js",
