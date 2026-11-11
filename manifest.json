@@ -1,15 +1,15 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.13",
+  "version": "1.0.8",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
     {
       "id": "moviesdrive",
-      "name": "MoviesDrive",
+      "name": "✅️ MoviesDrive",
       "description": "MoviesDrive provider (HubCloud / GDFlix)",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "moviesdrive.js",
@@ -21,9 +21,9 @@
     },
     {
       "id": "hdhub4u",
-      "name": "HDhub4u",
+      "name": "✅️ HDHub4u",
       "description": "HDhub4u provider (HubCloud / Hubdrive / GDFlix)",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "hdhub4u.js",
@@ -34,17 +34,31 @@
       "supportsExternalPlayer": true
     },
     {
+      "id": "multimovies",
+      "name": "✅️ Multimovies",
+      "description": "Multimovies provider (site servers)",
+      "version": "1.0.1",
+      "author": "ali8626",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "multimovies.js",
+      "enabled": true,
+      "hasSettings": false,
+      "contentLanguage": ["en", "hi"],
+      "formats": ["mp4", "mkv", "m3u8"],
+      "supportsExternalPlayer": true
+    },
+    {
       "id": "advisory",
-      "name": "Content Guide",
-      "description": "Scene info from IMDb / Kids-In-Mind",
-      "version": "1.0.7",
+      "name": "✅️ Content Advisory",
+      "description": "Content advisory (IMDb Parents Guide, Kids-In-Mind, Mr. Skin)",
+      "version": "1.0.1",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "advisory.js",
       "enabled": true,
       "hasSettings": false,
-      "contentLanguage": ["en"],
-      "formats": ["mp4"],
+      "contentLanguage": ["ar", "en"],
+      "formats": ["mp4", "mkv"],
       "supportsExternalPlayer": false
     }
   ]
