@@ -82,17 +82,31 @@ async function getMeta(tmdbId, mediaType) {
 
 // ===== Multimovies =====
 var SITES = ['https://m1.multimovies.courses', 'https://multimovies.garden'];
-var UA_M = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+// نفس User-Agent الذي يستخدمه الكود الأصلي (MMNet.UA)
+var UA_M = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 var _dbg = [];
 
+function pause(ms) {
+  return new Promise(function (res) {
+    if (typeof setTimeout === 'function') setTimeout(res, ms); else res();
+  });
+}
+
 async function mmGet(url, referer) {
-  var r = await fetch(url, { headers: { 'User-Agent': UA_M, 'Accept-Language': 'en-US,en;q=0.9', 'Referer': referer || '' } });
+  var opts = { headers: { 'User-Agent': UA_M, 'Accept-Language': 'en-US,en;q=0.9', 'Referer': referer || '' } };
+  var r = await fetch(url, opts);
+  if (r.status === 429) {
+    // تقييد معدل الطلبات: نعيد المحاولة مرة واحدة بعد مهلة قصيرة
+    await pause(1500);
+    r = await fetch(url, opts);
+  }
   if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + String(url).replace(/^https?:\/\//, '').slice(0, 45));
   return r.text();
 }
 
 function absUrl(base, u) {
   if (/^https?:\/\//i.test(u)) return u;
+  base = String(base).replace(/\/+$/, '');
   return base + (u.charAt(0) === '/' ? '' : '/') + u;
 }
 
@@ -218,6 +232,9 @@ function deEsc(u) {
 async function resolveServer(server, tmdbId, site) {
   var url = String(server.url).replace('{tmdbId}', tmdbId);
   var name = server.name || hostOf(url);
+  var host0 = hostOf(url);
+  if (/iqsmartgames\.com/i.test(host0)) return resolveIqsmart(url, name, site);
+  if (/filesforever\.link/i.test(host0)) return resolveFilesforever(url, name, site);
   if (/\.m3u8(\?|$)/i.test(url)) {
     return [{ name: 'Multimovies', title: name, url: url, quality: 'Auto', headers: { 'Referer': site + '/' }, provider: 'multimovies' }];
   }
@@ -240,6 +257,176 @@ async function resolveServer(server, tmdbId, site) {
     });
   }
   return out;
+}
+
+// ===== GD mirror (iqsmartgames.com / filesforever.link): ملفات ثم مرايا ثم صفحات بها JS مضغوط =====
+var IQ_API = 'https://streams.iqsmartgames.com';
+var IQ_PLAYER = 'https://pro.iqsmartgames.com';
+var XVID_HOSTS = ['hanerix.com', 'morencius.com', 'vibuxer.com', 'n1mwq.org', 'minochinos.com'];
+// مرايا تحتاج مستخرجات لم نحصل على كودها بعد
+var CINEVERSE_HOSTS = ['multimovies.rpmhub.site', 'multimovies.embedseek.xyz', 'multimovies.p2pplay.pro', 'server1.uns.bio'];
+
+function b64urlDecode(str) {
+  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  str = String(str).replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+\/]/g, '');
+  var out = '';
+  for (var i = 0; i < str.length; i += 4) {
+    var a = chars.indexOf(str.charAt(i));
+    var b = chars.indexOf(str.charAt(i + 1));
+    var c = str.charAt(i + 2) ? chars.indexOf(str.charAt(i + 2)) : -1;
+    var d = str.charAt(i + 3) ? chars.indexOf(str.charAt(i + 3)) : -1;
+    var n = (a << 18) | (b << 12) | ((c < 0 ? 0 : c) << 6) | (d < 0 ? 0 : d);
+    out += String.fromCharCode((n >> 16) & 255);
+    if (c >= 0) out += String.fromCharCode((n >> 8) & 255);
+    if (d >= 0) out += String.fromCharCode(n & 255);
+  }
+  return out;
+}
+
+// فك JS المضغوط بطريقة p,a,c,k,e,d
+function unpackPacked(html) {
+  var m = /\}\s*\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'((?:[^'\\]|\\.)*)'\.split\('\|'\)/.exec(html);
+  if (!m) return null;
+  var p = m[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+  var a = parseInt(m[2], 10), c = parseInt(m[3], 10), k = m[4].split('|');
+  function base(n) {
+    return (n < a ? '' : base(Math.floor(n / a))) + ((n = n % a) > 35 ? String.fromCharCode(n + 29) : n.toString(36));
+  }
+  var d = {};
+  while (c--) d[base(c)] = k[c] || base(c);
+  return p.replace(/\b\w+\b/g, function (w) { return d[w] !== undefined ? d[w] : w; });
+}
+
+function shortLabel(filename) {
+  var cleaned = String(filename || '')
+    .replace(/[._]+/g, ' ')
+    .replace(/\b(multi|ddp[\d.]*|atmos|h[ .]?265|hevc|x265|x264|avc|esub|hindi|web[ .-]?dl|webrip|hdrip|hdtc|hc)\b/gi, ' ')
+    .replace(/\s+/g, ' ').trim();
+  return cleaned.length > 26 ? cleaned.substring(0, 26).trim() + '...' : cleaned;
+}
+
+function iqVar(html, name) {
+  var m = new RegExp('let\\s+' + name + '\\s*=\\s*"([^"]*)"').exec(html);
+  return m ? m[1] : '';
+}
+
+async function iqFiles(embedUrl, site) {
+  var html = await mmGet(embedUrl, site + '/');
+  var finalId = iqVar(html, 'FinalID'), idType = iqVar(html, 'idType'), key = iqVar(html, 'myKey');
+  if (!finalId || !key) return [];
+  var season = iqVar(html, 'season'), ep = iqVar(html, 'epname');
+  var path = (season && ep)
+    ? IQ_API + '/myseriesapi?' + idType + '=' + encodeURIComponent(finalId) + '&season=' + season + '&epname=' + encodeURIComponent(ep) + '&key=' + key
+    : IQ_API + '/mymovieapi?' + idType + '=' + encodeURIComponent(finalId) + '&key=' + key;
+  var body = JSON.parse(await mmGet(path, IQ_API + '/'));
+  return (body.data || []).filter(function (x) { return x && x.fileslug; }).map(function (x) {
+    return { slug: x.fileslug, name: x.filename || '', size: x.fsize || '' };
+  });
+}
+
+async function iqMirrors(slug) {
+  var form = 'sid=' + encodeURIComponent(slug) + '&UserFavSite=' +
+    '&currentDomain=' + encodeURIComponent('["streams.iqsmartgames.com","pro.iqsmartgames.com"]');
+  var r = await fetch(IQ_PLAYER + '/embedhelper2.php', {
+    method: 'POST',
+    headers: { 'User-Agent': UA_M, 'Referer': IQ_PLAYER + '/', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' embedhelper2');
+  var root = JSON.parse(await r.text());
+  var sources = root.sources || {};
+  var codes = JSON.parse(b64urlDecode(root.mresult || ''));
+  var out = [];
+  Object.keys(codes).forEach(function (key) {
+    var src = sources[key];
+    var code = codes[key];
+    if (src && src.siteUrl && code) out.push({ siteUrl: src.siteUrl, name: src.friendlyName || key, code: code });
+  });
+  return out;
+}
+
+// مرايا بصفحات JS مضغوط: نفك الضغط ونستخرج روابط m3u8
+async function resolveXvid(pageUrl, label) {
+  var origin = (/^(https?:\/\/[^\/]+)/i.exec(pageUrl) || [])[1] || '';
+  var html = await mmGet(pageUrl, IQ_PLAYER + '/');
+  var unpacked = unpackPacked(html);
+  if (!unpacked) return [];
+  var abs = [], rel = [];
+  var re = /"(?:hls\d|file|mp4)"\s*:\s*"([^"]+)"/g;
+  var m;
+  while ((m = re.exec(unpacked))) {
+    var u = deEsc(m[1]);
+    if (!u) continue;
+    if (/^http/i.test(u)) abs.push(u); else rel.push(absUrl(origin, u));
+  }
+  var re2 = /https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/g;
+  while ((m = re2.exec(unpacked))) abs.push(deEsc(m[0]));
+  var seen = {};
+  return abs.concat(rel).filter(function (u) {
+    if (!/^http/i.test(u) || seen[u]) return false;
+    seen[u] = true;
+    return true;
+  }).map(function (u) {
+    return { name: 'Multimovies', title: label, url: u, quality: 'Auto', headers: { 'Referer': origin + '/' }, provider: 'multimovies' };
+  });
+}
+
+async function resolveMirrorPage(pageUrl, label) {
+  var host = hostOf(pageUrl);
+  var out = [];
+  var seen = {};
+  var re = /https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/g;
+  var html = await mmGet(pageUrl, '');
+  var m;
+  while ((m = re.exec(html))) {
+    var u = deEsc(m[0]);
+    if (seen[u]) continue;
+    seen[u] = true;
+    out.push({ name: 'Multimovies', title: label, url: u, quality: 'Auto', headers: {}, provider: 'multimovies' });
+  }
+  return out;
+}
+
+async function dispatchMirror(mirror, label) {
+  var pageUrl = absUrl(mirror.siteUrl, mirror.code);
+  var host = hostOf(pageUrl);
+  if (CINEVERSE_HOSTS.indexOf(host) !== -1 || host === 'bysetayico.com') {
+    _dbg.push('mirror ' + host + ' needs its own resolver');
+    return [];
+  }
+  if (XVID_HOSTS.indexOf(host) !== -1) return resolveXvid(pageUrl, label);
+  return resolveMirrorPage(pageUrl, label);
+}
+
+async function resolveIqsmart(embedUrl, name, site) {
+  var files = await iqFiles(embedUrl, site);
+  var out = [];
+  for (var i = 0; i < Math.min(files.length, 6); i++) {
+    var mirrors = [];
+    try { mirrors = await iqMirrors(files[i].slug); } catch (e) { _dbg.push('iqsmart mirrors: ' + (e && e.message ? e.message : e)); }
+    var label = name + ' ' + (shortLabel(files[i].name) || ('File ' + (i + 1))) + (files[i].size ? ' [' + files[i].size + ']' : '');
+    var res = await Promise.all(mirrors.map(function (mr) {
+      return dispatchMirror(mr, label).catch(function () { return []; });
+    }));
+    res.forEach(function (r) { out = out.concat(r); });
+  }
+  return out;
+}
+
+async function resolveFilesforever(embedUrl, name, site) {
+  var code = embedUrl.replace(/\/+$/, '').split('/').pop();
+  if (!code) return [];
+  var sid = code;
+  try {
+    var page = await mmGet(embedUrl, site + '/');
+    var m = /id="gdmrfid"\s+value="([^"]+)"/.exec(page) || /let\s+FinalID\s*=\s*"([^"]+)"/.exec(page);
+    if (m) sid = m[1];
+  } catch (e) {}
+  var mirrors = await iqMirrors(sid);
+  var res = await Promise.all(mirrors.map(function (mr) {
+    return dispatchMirror(mr, name + ' ' + sid).catch(function () { return []; });
+  }));
+  return res.reduce(function (acc, r) { return acc.concat(r); }, []);
 }
 
 // وضع التشخيص: عند الفشل يظهر سطر في قائمة السيرفرات يشرح السبب. اجعله false بعد أن يعمل المزوّد.
