@@ -296,6 +296,14 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       }
     }));
     var out = results.reduce(function (acc, r) { return acc.concat(r); }, []);
+    // سطر تشخيص إضافي: السيرفرات التي لم تُنتج رابطًا (حتى لو نجح بعضها)
+    var missing = [];
+    servers.forEach(function (sv, i) {
+      if (!results[i].length) missing.push((sv.name || '?') + ' (' + hostOf(sv.url) + ')');
+    });
+    if (out.length && DEBUG && missing.length) {
+      out.push(debugStream('unresolved ' + missing.length + '/' + servers.length + ': ' + missing.join(', ') + (_dbg.length ? ' | ' + _dbg.slice(0, 2).join(' | ') : ''))[0]);
+    }
     if (!out.length) {
       var hosts = {};
       servers.forEach(function (sv) { var h = hostOf(sv.url); hosts[h] = (hosts[h] || 0) + 1; });
