@@ -37,7 +37,7 @@
       "id": "multimovies",
       "name": "✅️ Multimovies",
       "description": "Multimovies provider (site servers)",
-      "version": "1.0.2",
+      "version": "1.0.5",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "multimovies.js",
