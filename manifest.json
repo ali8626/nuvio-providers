@@ -1,7 +1,7 @@
 {
   "id": "ali8626-providers",
   "name": "My Providers",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Personal Nuvio providers",
   "author": "ali8626",
   "scrapers": [
@@ -34,17 +34,17 @@
       "supportsExternalPlayer": true
     },
     {
-      "id": "multimovies",
-      "name": "✅️ Multimovies",
-      "description": "Multimovies provider (site servers)",
-      "version": "1.0.5",
+      "id": "vegamovies",
+      "name": "✅️ VegaMovies",
+      "description": "VegaMovies provider (V-Cloud / FastDL / HubCloud)",
+      "version": "1.0.0",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
-      "filename": "multimovies.js",
+      "filename": "vegamovies.js",
       "enabled": true,
       "hasSettings": false,
       "contentLanguage": ["en", "hi"],
-      "formats": ["mp4", "mkv", "m3u8"],
+      "formats": ["mp4", "mkv"],
       "supportsExternalPlayer": true
     },
     {
