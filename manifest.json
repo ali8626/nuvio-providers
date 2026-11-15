@@ -37,7 +37,7 @@
       "id": "vegamovies",
       "name": "✅️ VegaMovies",
       "description": "VegaMovies provider (V-Cloud / FastDL / HubCloud)",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "author": "ali8626",
       "supportedTypes": ["movie", "tv"],
       "filename": "vegamovies.js",
