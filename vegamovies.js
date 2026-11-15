@@ -262,7 +262,7 @@ async function searchPosts(domain, q) {
   var url = domain + '/ts-search.php?q=' + encodeURIComponent(q) + '&page=1';
   for (var i = 0; i < 3; i++) {
     try {
-      var r = await hget(url, domain + '/');
+      var r = await hget(url, domain + '/search.html?q=' + q);
       if (r.status === 200) {
         var j = JSON.parse(r.text);
         return (j.hits || []).map(function (h) { return h.document; })
@@ -348,16 +348,25 @@ function extractVcloudTarget(html) {
   return p && /^http/i.test(p[1]) ? p[1] : '';
 }
 
+function cfNote(r) {
+  var mit = '';
+  try { mit = (r.headers && r.headers.get && r.headers.get('cf-mitigated')) || ''; } catch (e) {}
+  var t = String(r.text || '').toLowerCase();
+  return (mit === 'challenge' || (t.indexOf('just a moment') !== -1 && t.indexOf('challenge-platform') !== -1) || t.indexOf('checking your browser') !== -1)
+    ? ' (Cloudflare challenge: cannot be solved in Nuvio)' : '';
+}
+
 async function vcloudTarget(url) {
   var first = await hget(url, NEXDRIVE, { 'Cookie': 'xla=s4t' });
-  if (!first.ok) throw new Error('HTTP ' + first.status + ' ' + hostOf(url));
+  if (!first.ok) throw new Error('HTTP ' + first.status + ' ' + hostOf(url) + cfNote(first));
   var target = extractVcloudTarget(first.text);
   if (/^http/i.test(target)) return { from: url, target: target };
+  if (cfNote(first)) throw new Error('blocked ' + hostOf(url) + cfNote(first));
   var hopM = /<div[^>]*class=["'][^"']*\bmain\b[^"']*["'][^>]*>[\s\S]*?<h4[^>]*>\s*<a[^>]*href=["']([^"']+)["']/i.exec(first.text);
   if (!hopM) return null;
   var hopUrl = /^http/i.test(hopM[1]) ? hopM[1] : baseOfUrl(url) + hopM[1];
   var hop = await hget(hopUrl, url, { 'Cookie': 'xla=s4t' });
-  if (!hop.ok) throw new Error('HTTP ' + hop.status + ' ' + hostOf(hopUrl));
+  if (!hop.ok) throw new Error('HTTP ' + hop.status + ' ' + hostOf(hopUrl) + cfNote(hop));
   target = extractVcloudTarget(hop.text);
   return /^http/i.test(target) ? { from: hopUrl, target: target } : null;
 }
@@ -373,7 +382,7 @@ async function vcloudServers(url) {
   var t = await vcloudTarget(url);
   if (!t) { _dbg.push(hostOf(url) + ': no vcloud target'); return []; }
   var r = await hget(t.target, t.from, { 'Cookie': 'xla=s4t' });
-  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + hostOf(t.target));
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + hostOf(t.target) + cfNote(r));
   var out = [];
   var toks = tokenize2(r.text);
   for (var i = 0; i < toks.length; i++) {
@@ -628,7 +637,14 @@ async function getStreams(tmdbId, mediaType, season, episode) {
   var step = 'start';
   _dbg = [];
   _pageCache = {};
-  function fail(m) { return DEBUG ? debugStream(m + (_dbg.length ? ' | ' + _dbg.slice(0, 3).join(' | ') : '')) : []; }
+  function fail(m) {
+    // رسائل Cloudflare أولًا ثم الباقي، بدون تكرار
+    var important = _dbg.filter(function (x) { return /cloudflare|blocked/i.test(x); });
+    var rest = _dbg.filter(function (x) { return !/cloudflare|blocked/i.test(x); });
+    var seenM = {};
+    var msgs = important.concat(rest).filter(function (x) { if (seenM[x]) return false; seenM[x] = true; return true; }).slice(0, 3);
+    return DEBUG ? debugStream(m + (msgs.length ? ' | ' + msgs.join(' | ') : '')) : [];
+  }
   try {
     step = 'meta (tmdb ' + tmdbId + ')';
     var meta = await getMeta(tmdbId, mediaType);
