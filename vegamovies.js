@@ -591,6 +591,26 @@ async function pool(items, n, fn) {
   await Promise.all(ws);
 }
 
+// فحص بسيط لحياة الرابط: نطلب أول 1024 بايت فقط (مثل alive في الكود الأصلي)
+async function probeLink(sv) {
+  var headers = bh('');
+  headers['Range'] = 'bytes=0-1023';
+  if (sv.headers) Object.keys(sv.headers).forEach(function (k) { headers[k] = sv.headers[k]; });
+  try {
+    var r = await Promise.race([
+      fetch(sv.url, { headers: headers }),
+      pause(8000).then(function () { return null; })
+    ]);
+    if (!r) return { ok: false, why: 'timeout' };
+    var ct = '';
+    try { ct = (r.headers && r.headers.get && r.headers.get('content-type')) || ''; } catch (e) {}
+    if ((r.status === 200 || r.status === 206) && !/text\/html/i.test(ct)) return { ok: true, why: String(r.status) };
+    return { ok: false, why: 'HTTP ' + r.status + (/text\/html/i.test(ct) ? ' html' : '') };
+  } catch (e) {
+    return { ok: false, why: 'error' };
+  }
+}
+
 // وضع التشخيص: عند الفشل يظهر سطر في قائمة السيرفرات يشرح السبب. اجعله false بعد أن يعمل المزوّد.
 var DEBUG = true;
 
@@ -639,6 +659,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
 
     step = 'servers (' + groups.length + ' groups)';
     var claimed = {}, seenUrls = {}, out = [];
+    var candidates = [];
     var tasks = [];
     groups.forEach(function (g) { g.links.forEach(function (l) { tasks.push({ group: g, link: l }); }); });
 
@@ -654,15 +675,26 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         servers.forEach(function (sv) {
           if (seenUrls[sv.url]) return;
           seenUrls[sv.url] = true;
-          var key = sv.name + '|' + tier;
-          if (claimed[key]) return;
-          claimed[key] = true;
-          out.push({ name: 'VegaMovies', title: meta.title + ' • ' + sv.name + (info ? ' • ' + info : ''), url: sv.url, quality: tier, headers: sv.headers || {}, provider: 'vegamovies' });
+          candidates.push({ sv: sv, tier: tier, info: info });
         });
       }
     });
 
-    if (!out.length) return fail('post "' + post.post_title + '" ok, ' + tasks.length + ' drive links, none playable');
+    // نستبعد الروابط الميتة، ثم رابط واحد لكل سيرفر في كل جودة
+    await pool(candidates, 6, async function (c) { c.probe = await probeLink(c.sv); });
+    var dropped = [];
+    candidates.forEach(function (c) {
+      if (!c.probe || !c.probe.ok) { dropped.push(c.sv.name + ' ' + (c.probe ? c.probe.why : '?')); return; }
+      var key = c.sv.name + '|' + c.tier;
+      if (claimed[key]) return;
+      claimed[key] = true;
+      out.push({ name: 'VegaMovies', title: meta.title + ' • ' + c.sv.name + (c.info ? ' • ' + c.info : ''), url: c.sv.url, quality: c.tier, headers: c.sv.headers || {}, provider: 'vegamovies' });
+    });
+    if (out.length && DEBUG && dropped.length) {
+      out.push(debugStream('dropped ' + dropped.length + ' dead links: ' + dropped.slice(0, 6).join(', '))[0]);
+    }
+
+    if (!out.length) return fail('post "' + post.post_title + '" ok, ' + tasks.length + ' drive links, ' + candidates.length + ' links found, none alive' + (dropped.length ? ' (' + dropped.slice(0, 5).join(', ') + ')' : ''));
     return out;
   } catch (err) {
     return fail('ERR at ' + step + ': ' + (err && err.message ? err.message : err));
