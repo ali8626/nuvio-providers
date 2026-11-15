@@ -611,6 +611,12 @@ async function probeLink(sv) {
   }
 }
 
+// السيرفرات التي تُعرض فقط. اتركها [] لعرض الكل، أو اكتب أسماء مثل ['PixelDrain'] أو ['PixelDrain', 'FSL'].
+var ONLY_SERVERS = [];
+// نسخ Dolby Vision / Hybrid يصعب على كثير من المشغلات تشغيلها (الكود الأصلي يفصلها لهذا السبب).
+// true = إخفاؤها، false = عرضها بعلامة [DV].
+var HIDE_DV = true;
+
 // وضع التشخيص: عند الفشل يظهر سطر في قائمة السيرفرات يشرح السبب. اجعله false بعد أن يعمل المزوّد.
 var DEBUG = true;
 
@@ -667,15 +673,19 @@ async function getStreams(tmdbId, mediaType, season, episode) {
       var g = task.group;
       var tier = qualityOf(g.label);
       var info = infoFrom(g.label);
+      var dv = /\bDV\b|dolby|hybrid/i.test(g.label);
+      var lang = /english with subtitles/i.test(g.label) ? 'English' : '';
+      if (dv && HIDE_DV) return;
       var page = await fetchDrivePage(task.link.href);
       if (!page) return;
       var targets = isTv ? (page.episodes[e] || (Object.keys(page.episodes).length ? [] : page.servers)) : page.servers;
       for (var i = 0; i < targets.length; i++) {
         var servers = await resolveHref(targets[i].href);
         servers.forEach(function (sv) {
+          if (ONLY_SERVERS.length && ONLY_SERVERS.indexOf(sv.name) === -1) return;
           if (seenUrls[sv.url]) return;
           seenUrls[sv.url] = true;
-          candidates.push({ sv: sv, tier: tier, info: info });
+          candidates.push({ sv: sv, tier: tier, info: info, dv: dv, lang: lang });
         });
       }
     });
@@ -685,11 +695,13 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     var dropped = [];
     candidates.forEach(function (c) {
       if (!c.probe || !c.probe.ok) { dropped.push(c.sv.name + ' ' + (c.probe ? c.probe.why : '?')); return; }
-      var key = c.sv.name + '|' + c.tier;
+      var key = c.sv.name + '|' + c.tier + '|' + c.lang + '|' + (c.dv ? 'dv' : '');
       if (claimed[key]) return;
       claimed[key] = true;
-      out.push({ name: 'VegaMovies', title: meta.title + ' • ' + c.sv.name + (c.info ? ' • ' + c.info : ''), url: c.sv.url, quality: c.tier, headers: c.sv.headers || {}, provider: 'vegamovies' });
+      var extras = (c.lang ? ' [' + c.lang + ']' : '') + (c.dv ? ' [DV]' : '');
+      out.push({ name: 'VegaMovies', title: meta.title + ' • ' + c.sv.name + ' ' + c.tier + extras + (c.info ? ' • ' + c.info : ''), url: c.sv.url, quality: c.tier, headers: c.sv.headers || {}, provider: 'vegamovies' });
     });
+    out.sort(function (x, y) { return (parseInt(y.quality, 10) || 0) - (parseInt(x.quality, 10) || 0); });
     if (out.length && DEBUG && dropped.length) {
       out.push(debugStream('dropped ' + dropped.length + ' dead links: ' + dropped.slice(0, 6).join(', '))[0]);
     }
